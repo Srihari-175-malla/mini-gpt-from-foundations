@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM From Scratch - GPT Architecture Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="dark-theme">
+  <div class="app-layout">
+    
+    <!-- Top Header -->
+    <header class="navbar">
+      <div class="logo-group">
+        <div class="logo-icon">🧠</div>
+        <div class="logo-title">LLM<span class="highlight">Studio</span> <span class="badge">GPT Decoder from Scratch</span></div>
+      </div>
+      <nav class="nav-tabs">
+        <button class="nav-btn active" id="tab-btn-generate" onclick="switchNavTab('generate-view')">💬 Text Generation</button>
+        <button class="nav-btn" id="tab-btn-tokenizer" onclick="switchNavTab('tokenizer-view')">🔤 BPE Tokenizer</button>
+        <button class="nav-btn" id="tab-btn-training" onclick="switchNavTab('training-view')">📈 Training Monitor</button>
+        <button class="nav-btn" id="tab-btn-scaling" onclick="switchNavTab('scaling-view')">⚙️ Architecture</button>
+      </nav>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark/Light Theme">🌙</button>
+    </header>
+
+    <!-- Main View Area -->
+    <main class="main-view">
+
+      <!-- VIEW 1: TEXT GENERATION PLAYGROUND -->
+      <section id="generate-view" class="view-content active">
+        <div class="grid-2col">
+          
+          <!-- Left Column: Input & Controls -->
+          <div class="card">
+            <h3>Prompt & Sampling Parameters</h3>
+            <div class="form-group">
+              <label for="prompt-input">Prompt Text:</label>
+              <textarea id="prompt-input" rows="4" placeholder="Type prompt e.g. 'To be, or not' or 'User: What is Python?\nAssistant: '">To be, or not</textarea>
+            </div>
+
+            <!-- Sampling Sliders -->
+            <div class="slider-grid">
+              <div class="slider-item">
+                <span class="slider-label">Temperature: <strong id="temp-val">0.8</strong></span>
+                <input type="range" id="temp-slider" min="0.1" max="2.0" step="0.1" value="0.8" oninput="updateSamplingValues()">
+              </div>
+              <div class="slider-item">
+                <span class="slider-label">Top-K: <strong id="topk-val">40</strong></span>
+                <input type="range" id="topk-slider" min="0" max="100" step="5" value="40" oninput="updateSamplingValues()">
+              </div>
+              <div class="slider-item">
+                <span class="slider-label">Top-P (Nucleus): <strong id="topp-val">0.9</strong></span>
+                <input type="range" id="topp-slider" min="0.1" max="1.0" step="0.05" value="0.9" oninput="updateSamplingValues()">
+              </div>
+              <div class="slider-item">
+                <span class="slider-label">Max Tokens: <strong id="tokens-val">50</strong></span>
+                <input type="range" id="tokens-slider" min="10" max="150" step="10" value="50" oninput="updateSamplingValues()">
+              </div>
+            </div>
+
+            <button class="btn primary full-width" id="gen-btn" onclick="generateText()">🚀 Generate Text Continuation</button>
+          </div>
+
+          <!-- Right Column: Generated Output -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Generated Text Output</h3>
+              <span id="gen-time-badge" class="time-badge" style="display: none;">0 ms</span>
+            </div>
+            <div id="output-box" class="output-box">
+              <p class="placeholder-text">Click "Generate Text Continuation" to run autoregressive sampling...</p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- VIEW 2: BPE TOKENIZER INSPECTOR -->
+      <section id="tokenizer-view" class="view-content">
+        <div class="card-full">
+          <h2>🔤 Byte-Pair Encoding (BPE) Subword Tokenizer</h2>
+          <p>Splits raw text strings into learned subword token IDs using byte-pair frequency merges.</p>
+          
+          <div class="form-group" style="margin-top: 1rem;">
+            <label>Input Text to Tokenize:</label>
+            <textarea id="token-input" rows="3" placeholder="Type text to inspect BPE tokens..." oninput="handleTokenizeInput()">To be, or not to be, that is the question.</textarea>
+          </div>
+
+          <div id="token-output-container" class="token-output-container" style="margin-top: 1.5rem;">
+            <h3>Subword Tokens Breakdown (<span id="token-count">0</span> tokens)</h3>
+            <div id="tokens-chips" class="tokens-chips"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: TRAINING & FINE-TUNING MONITOR -->
+      <section id="training-view" class="view-content">
+        <div class="card-full">
+          <h2>📈 Model Pretraining & Instruction Fine-Tuning Monitor</h2>
+          <p>Track CrossEntropyLoss decay and Perplexity ($\text{PPL} = \exp(\text{loss})$) reduction live.</p>
+
+          <div class="action-row" style="margin-top: 1rem;">
+            <button class="btn primary" onclick="runTrainStep('pretrain')">▶️ Train Pretraining Epoch</button>
+            <button class="btn accent" onclick="runTrainStep('finetune')">🎯 Fine-Tune Instruction Epoch</button>
+          </div>
+
+          <div id="train-status" class="status-box" style="display: none;"></div>
+
+          <div class="metrics-summary-grid" style="margin-top: 1.5rem;">
+            <div class="stat-box"><div class="stat-num" id="stat-loss">-</div><div class="stat-lbl">Latest Loss</div></div>
+            <div class="stat-box"><div class="stat-num" id="stat-ppl">-</div><div class="stat-lbl">Latest Perplexity</div></div>
+            <div class="stat-box"><div class="stat-num" id="stat-epochs">0</div><div class="stat-lbl">Total Epochs Run</div></div>
+          </div>
+
+          <h3 style="margin-top: 2rem;">Epoch Training History</h3>
+          <div class="table-wrapper">
+            <table class="data-table" id="train-history-table">
+              <thead>
+                <tr>
+                  <th>Epoch</th>
+                  <th>Training Mode</th>
+                  <th>Loss</th>
+                  <th>Perplexity (PPL)</th>
+                  <th>Epoch Time (sec)</th>
+                </tr>
+              </thead>
+              <tbody><!-- Populated dynamically --></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 4: MODEL ARCHITECTURE & SCALING -->
+      <section id="scaling-view" class="view-content">
+        <div class="card-full">
+          <h2>⚙️ GPT Model Architecture & Compute Scaling</h2>
+          <p>Detailed hyperparameter specification, parameter counts, and FLOP estimates per token.</p>
+          
+          <div id="scaling-grid" class="scaling-grid" style="margin-top: 1.5rem;">
+            <div class="scale-card"><h4>Trainable Parameters</h4><div class="scale-val" id="scale-params">-</div></div>
+            <div class="scale-card"><h4>Model Dimension (d_model)</h4><div class="scale-val" id="scale-dmodel">-</div></div>
+            <div class="scale-card"><h4>Transformer Layers (L)</h4><div class="scale-val" id="scale-layers">-</div></div>
+            <div class="scale-card"><h4>Attention Heads (H)</h4><div class="scale-val">4</div></div>
+            <div class="scale-card"><h4>Context Length (T)</h4><div class="scale-val" id="scale-seqlen">-</div></div>
+            <div class="scale-card"><h4>Vocabulary Size (V)</h4><div class="scale-val" id="scale-vocab">-</div></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
